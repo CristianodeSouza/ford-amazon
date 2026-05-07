@@ -230,6 +230,7 @@ function dashboard() {
     aba: 'todos',
     buscaNF: '',
     buscaCliente: '',
+    buscaId: '',
     dataInicio: '',
     dataFim: '',
     loading: true,
@@ -258,9 +259,10 @@ function dashboard() {
         if (IS_LOCAL) {
           // Modo local: usa o backend FastAPI
           const params = this._dateParams();
-          if (this.buscaNF.trim())      params.append('nota_fiscal', this.buscaNF.trim());
-          if (this.buscaCliente.trim()) params.append('cliente',     this.buscaCliente.trim());
-          if (this.aba !== 'todos')     params.append('tipo',        this.aba);
+          if (this.buscaNF.trim())      params.append('nota_fiscal',  this.buscaNF.trim());
+          if (this.buscaCliente.trim()) params.append('cliente',      this.buscaCliente.trim());
+          if (this.buscaId.trim())      params.append('id_operacao',  this.buscaId.trim());
+          if (this.aba !== 'todos')     params.append('tipo',         this.aba);
           const res = await fetch('/api/conciliacao?' + params.toString());
           if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
           const data = await res.json();
@@ -290,6 +292,10 @@ function dashboard() {
           if (this.buscaCliente.trim()) {
             const t = this.buscaCliente.trim().toLowerCase();
             all = all.filter(r => r.cliente.toLowerCase().includes(t));
+          }
+          if (this.buscaId.trim()) {
+            const t = this.buscaId.trim().toLowerCase();
+            all = all.filter(r => String(r.id_operacao || '').toLowerCase().includes(t));
           }
 
           const shown = this.aba !== 'todos' ? all.filter(r => r.tipo === this.aba) : all;
@@ -341,6 +347,7 @@ function dashboard() {
     limparFiltros() {
       this.buscaNF      = '';
       this.buscaCliente = '';
+      this.buscaId      = '';
       this.dataInicio   = '';
       this.dataFim      = '';
       this.aplicarFiltros();

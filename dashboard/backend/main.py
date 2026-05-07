@@ -19,6 +19,8 @@ app.add_middleware(
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+app.mount("/css",    StaticFiles(directory=os.path.join(FRONTEND_DIR, "css")), name="css")
+app.mount("/js",     StaticFiles(directory=os.path.join(FRONTEND_DIR, "js")),  name="js")
 
 
 @app.get("/")
@@ -30,6 +32,7 @@ def index():
 def listar_conciliacao(
     nota_fiscal: str = Query(None),
     cliente: str = Query(None),
+    id_operacao: str = Query(None),
     tipo: str = Query(None),        # "normal" | "disputa" | None = todos
     data_inicio: str = Query(None), # YYYY-MM-DD
     data_fim: str = Query(None),    # YYYY-MM-DD
@@ -49,6 +52,11 @@ def listar_conciliacao(
     if cliente and cliente.strip():
         t = cliente.strip().lower()
         registros = [r for r in registros if t in str(r["cliente"]).lower()]
+
+    # Filtro por ID da Operação / Source ID
+    if id_operacao and id_operacao.strip():
+        t = id_operacao.strip().lower()
+        registros = [r for r in registros if t in str(r["id_operacao"]).lower()]
 
     # Filtro de período — ignorado quando a busca é por NF específica
     if not nf_buscada and (data_inicio or data_fim):

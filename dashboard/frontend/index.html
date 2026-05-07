@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Conciliação MP × ML — Ford Amazon</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="css/style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 </head>
@@ -545,11 +545,24 @@
               <button class="field-clear" x-show="buscaCliente" @click="buscaCliente=''; aplicarFiltros()">✕</button>
             </div>
           </div>
+          <div class="field-group">
+            <label class="field-label">ID Operação / Source ID</label>
+            <div class="field-wrap">
+              <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <rect x="2" y="7" width="20" height="14" rx="2"/>
+                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+              </svg>
+              <input type="text" class="field-input"
+                placeholder="Ex: 145930976362"
+                x-model="buscaId" @input.debounce.400ms="aplicarFiltros()" autocomplete="off">
+              <button class="field-clear" x-show="buscaId" @click="buscaId=''; aplicarFiltros()">✕</button>
+            </div>
+          </div>
         </div>
 
         <!-- Limpar tudo -->
         <button class="btn-limpar-tudo"
-          x-show="buscaNF || buscaCliente || dataInicio || dataFim"
+          x-show="buscaNF || buscaCliente || buscaId || dataInicio || dataFim"
           @click="limparFiltros()">
           Limpar tudo
         </button>
@@ -557,7 +570,7 @@
       </div>
 
       <!-- Linha 2: Badges de resultado e avisos -->
-      <div class="filter-notices" x-show="buscaNF || buscaCliente || dataInicio || dataFim" x-cloak>
+      <div class="filter-notices" x-show="buscaNF || buscaCliente || buscaId || dataInicio || dataFim" x-cloak>
 
         <!-- Período ativo -->
         <span class="notice-badge notice-period" x-show="(dataInicio || dataFim) && !buscaNF" x-cloak>
@@ -710,6 +723,6 @@
     <a href="https://developers.mercadolivre.com.br/pt_br/pedidos-e-opinioes" target="_blank" rel="noopener">Docs ML</a>
   </footer>
 
-  <script src="/static/js/app.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
