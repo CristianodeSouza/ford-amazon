@@ -1,0 +1,148 @@
+{
+  "id": 4274673,
+  "nome": "Ford Amazon - Conciliação MP x ML v2",
+  "teamId": 37756,
+  "agendamento": {
+    "tipo": "indefinitely",
+    "intervalo_segundos": 900,
+    "intervalo_legivel": "A cada 15 minutos"
+  },
+  "status": "inativo",
+  "criado_por": "csrdesouza@gmail.com",
+  "ultima_edicao": "2026-03-02T10:17:46Z",
+  "planilha_destino": {
+    "spreadsheet_id": "1gaZhv11XyIAPFi87GLPaVI-KKg8gb22N-XTNNxZ83cQ",
+    "aba": "Página2",
+    "url": "https://docs.google.com/spreadsheets/d/1gaZhv11XyIAPFi87GLPaVI-KKg8gb22N-XTNNxZ83cQ/edit"
+  },
+  "apis_utilizadas": {
+    "mercado_livre": {
+      "base_url": "https://api.mercadolibre.com",
+      "user_id": "1576552143",
+      "client_id": "3857722102307647",
+      "endpoint_token": "/oauth/token",
+      "endpoint_nf": "/users/{user_id}/invoices/orders/{order_id}"
+    },
+    "mercado_pago": {
+      "base_url": "https://api.mercadopago.com",
+      "user_id": "1576552143",
+      "client_id": "3857722102307647",
+      "endpoint_token": "/oauth/token",
+      "endpoint_relatorio": "/v1/account/settlement_report/{filename}.csv"
+    }
+  },
+  "modulos": [
+    {
+      "id": 12,
+      "ordem": 1,
+      "nome": "ML - Refresh Token",
+      "tipo": "http:MakeRequest",
+      "descricao": "POST para api.mercadolibre.com/oauth/token com grant_type=refresh_token. Retorna access_token usado nos módulos seguintes.",
+      "saida_principal": "data.access_token"
+    },
+    {
+      "id": 60,
+      "ordem": 2,
+      "nome": "MP - Refresh Token",
+      "tipo": "http:MakeRequest",
+      "descricao": "POST para api.mercadopago.com/oauth/token com grant_type=refresh_token. Retorna access_token do Mercado Pago.",
+      "saida_principal": "data.access_token"
+    },
+    {
+      "id": 27,
+      "ordem": 3,
+      "nome": "MP - Baixar CSV Relatório",
+      "tipo": "http:MakeRequest",
+      "descricao": "GET do relatório de liquidação CSV do MP usando Bearer {{60.data.access_token}}. ATENÇÃO: URL do CSV está hardcoded — precisa ser dinâmica.",
+      "bug": "URL do arquivo CSV está fixa (settlement-report-...-2026-03-01.csv). Deve listar/gerar o relatório mais recente dinamicamente.",
+      "saida_principal": "data (conteúdo CSV)"
+    },
+    {
+      "id": 35,
+      "ordem": 4,
+      "nome": "Parse CSV Mercado Pago",
+      "tipo": "csv:ParseCSV",
+      "descricao": "Parseia o CSV com delimitador ';' e 50 colunas. Itera cada linha como um bundle separado.",
+      "colunas_relevantes": {
+        "col1":  "EXTERNAL_REFERENCE (ORDER_ID do ML)",
+        "col2":  "SOURCE_ID (ID da operação MP)",
+        "col3":  "USER_ID",
+        "col7":  "TRANSACTION_TYPE",
+        "col8":  "TRANSACTION_AMOUNT",
+        "col12": "FEE_AMOUNT",
+        "col13": "SETTLEMENT_NET_AMOUNT (valor líquido recebido)",
+        "col15": "SETTLEMENT_DATE",
+        "col16": "REAL_AMOUNT (valor pago usado na planilha)"
+      }
+    },
+    {
+      "id": 16,
+      "ordem": 5,
+      "nome": "ML - Buscar NF por EXTERNAL_REFERENCE",
+      "tipo": "http:MakeRequest",
+      "descricao": "GET /users/1576552143/invoices/orders/{{35.col1}} para buscar a Nota Fiscal do pedido no ML.",
+      "bug_critico": "Authorization usa token ESTÁTICO hardcoded em vez de {{12.data.access_token}}. O token vai expirar e as buscas passarão a retornar 401 silenciosamente.",
+      "correcao": "Trocar header Authorization de 'Bearer APP_USR-...' para 'Bearer {{12.data.access_token}}'",
+      "saida_relevante": {
+        "data.invoice_number": "Número da NF",
+        "data.issued_date":    "Data de emissão",
+        "data.recipient.name": "Nome do cliente",
+        "data.amount":         "Valor da NF"
+      }
+    },
+    {
+      "id": 62,
+      "ordem": 6,
+      "nome": "Sleep 1 segundo",
+      "tipo": "util:FunctionSleep",
+      "descricao": "Aguarda 1 segundo para evitar rate limit da API do ML.",
+      "filtro": "Só executa se módulo 16 retornou statusCode = 200 (NF encontrada).",
+      "problema": "O módulo 51 (Sheets) não tem filtro equivalente — insere linha mesmo quando a NF não é encontrada (404)."
+    },
+    {
+      "id": 51,
+      "ordem": 7,
+      "nome": "Google Sheets - Inserir Conciliação",
+      "tipo": "google-sheets:addRow",
+      "descricao": "Insere uma linha na Página2 da planilha FORD com os dados conciliados.",
+      "conexao_google": "csrdesouza@gmail.com (connection ID 95009)",
+      "mapeamento_colunas": {
+        "A - NOTA FISCAL":    "{{16.data.invoice_number}}",
+        "B - DATA VENDA":     "{{formatDate(16.data.issued_date; 'DD/MM/YYYY')}}",
+        "C - CLIENTE":        "{{16.data.recipient.name}}",
+        "D - VALOR NF":       "{{16.data.amount}}",
+        "E - VALOR PAGO":     "{{35.col16}} (REAL_AMOUNT do MP)",
+        "I - VALOR PAGO":     "{{35.col16}} (mesmo valor — duplicado intencional?)",
+        "J - ID DA OPERAÇÃO": "{{35.col2}} (SOURCE_ID do MP)"
+      }
+    }
+  ],
+  "bugs_identificados": [
+    {
+      "severidade": "CRÍTICO",
+      "modulo": 16,
+      "descricao": "Token ML hardcoded no header Authorization. Deve usar {{12.data.access_token}}."
+    },
+    {
+      "severidade": "IMPORTANTE",
+      "modulo": 27,
+      "descricao": "URL do CSV fixada em um arquivo específico. Deve ser dinâmica para sempre pegar o relatório mais recente."
+    },
+    {
+      "severidade": "IMPORTANTE",
+      "modulo": 51,
+      "descricao": "Sem filtro antes de inserir no Sheets — insere linhas em branco quando NF não encontrada (404)."
+    },
+    {
+      "severidade": "OBSERVAÇÃO",
+      "modulo": 51,
+      "descricao": "Colunas E e I recebem o mesmo valor (35.col16). Verificar se é intencional."
+    }
+  ],
+  "credenciais_no_make": {
+    "aviso": "client_secret e refresh_tokens estão em texto puro nos módulos 1 e 2. Considere usar o cofre de credenciais do Make.",
+    "client_id": "3857722102307647",
+    "ml_user_id": "1576552143",
+    "mp_user_id": "1576552143"
+  }
+}
