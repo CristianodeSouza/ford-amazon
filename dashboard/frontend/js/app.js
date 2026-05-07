@@ -242,12 +242,15 @@ function dashboard() {
       await Promise.all([this.carregar(), this.carregarIndicadores()]);
     },
 
-    _dateParams() {
+    _buildParams() {
       const p = new URLSearchParams();
       if (!this.buscaNF.trim()) {
         if (this.dataInicio) p.append('data_inicio', this.dataInicio);
         if (this.dataFim)    p.append('data_fim',    this.dataFim);
       }
+      if (this.buscaNF.trim())      p.append('nota_fiscal', this.buscaNF.trim());
+      if (this.buscaCliente.trim()) p.append('cliente',     this.buscaCliente.trim());
+      if (this.buscaId.trim())      p.append('id_operacao', this.buscaId.trim());
       return p;
     },
 
@@ -258,11 +261,8 @@ function dashboard() {
       try {
         if (IS_LOCAL) {
           // Modo local: usa o backend FastAPI
-          const params = this._dateParams();
-          if (this.buscaNF.trim())      params.append('nota_fiscal',  this.buscaNF.trim());
-          if (this.buscaCliente.trim()) params.append('cliente',      this.buscaCliente.trim());
-          if (this.buscaId.trim())      params.append('id_operacao',  this.buscaId.trim());
-          if (this.aba !== 'todos')     params.append('tipo',         this.aba);
+          const params = this._buildParams();
+          if (this.aba !== 'todos') params.append('tipo', this.aba);
           const res = await fetch('/api/conciliacao?' + params.toString());
           if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
           const data = await res.json();
@@ -281,9 +281,6 @@ function dashboard() {
             all = _filtrarPorData(all, this.dataInicio, this.dataFim);
           }
 
-          // Resumo global (antes de filtrar por NF / cliente / tipo)
-          this.resumo = _calcResumo(all);
-
           // Filtros textuais
           if (nfBusca) {
             const t = nfBusca.toLowerCase();
@@ -297,6 +294,9 @@ function dashboard() {
             const t = this.buscaId.trim().toLowerCase();
             all = all.filter(r => String(r.id_operacao || '').toLowerCase().includes(t));
           }
+
+          // Resumo reflete os filtros ativos
+          this.resumo = _calcResumo(all);
 
           const shown = this.aba !== 'todos' ? all.filter(r => r.tipo === this.aba) : all;
           this.registros = shown;
@@ -317,7 +317,7 @@ function dashboard() {
       this.loadingInd = true;
       try {
         if (IS_LOCAL) {
-          const params = this._dateParams();
+          const params = this._buildParams();
           const res = await fetch('/api/indicadores?' + params.toString());
           if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
           const data = await res.json();
@@ -326,8 +326,21 @@ function dashboard() {
         } else {
           const rows = await _fetchSheetsRows();
           let all = _buildRegistros(rows);
-          if (this.dataInicio || this.dataFim) {
+          const nfBusca = this.buscaNF.trim();
+          if (!nfBusca && (this.dataInicio || this.dataFim)) {
             all = _filtrarPorData(all, this.dataInicio, this.dataFim);
+          }
+          if (nfBusca) {
+            const t = nfBusca.toLowerCase();
+            all = all.filter(r => String(r.nota_fiscal).toLowerCase().includes(t));
+          }
+          if (this.buscaCliente.trim()) {
+            const t = this.buscaCliente.trim().toLowerCase();
+            all = all.filter(r => r.cliente.toLowerCase().includes(t));
+          }
+          if (this.buscaId.trim()) {
+            const t = this.buscaId.trim().toLowerCase();
+            all = all.filter(r => String(r.id_operacao || '').toLowerCase().includes(t));
           }
           Object.assign(this.ind, _calcInd(all));
         }

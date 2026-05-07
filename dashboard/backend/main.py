@@ -182,8 +182,11 @@ def _mes_chave(data_str: str) -> str | None:
 
 @app.get("/api/indicadores")
 def get_indicadores(
-    data_inicio: str = Query(None), # YYYY-MM-DD
-    data_fim: str = Query(None),    # YYYY-MM-DD
+    data_inicio: str = Query(None),
+    data_fim: str = Query(None),
+    nota_fiscal: str = Query(None),
+    cliente: str = Query(None),
+    id_operacao: str = Query(None),
 ):
     try:
         registros = fetch_conciliacao()
@@ -192,6 +195,16 @@ def get_indicadores(
 
     if data_inicio or data_fim:
         registros = _filtrar_por_data(registros, data_inicio, data_fim)
+
+    if nota_fiscal and nota_fiscal.strip():
+        t = nota_fiscal.strip().lower()
+        registros = [r for r in registros if t in str(r["nota_fiscal"]).lower()]
+    if cliente and cliente.strip():
+        t = cliente.strip().lower()
+        registros = [r for r in registros if t in str(r["cliente"]).lower()]
+    if id_operacao and id_operacao.strip():
+        t = id_operacao.strip().lower()
+        registros = [r for r in registros if t in str(r["id_operacao"]).lower()]
 
     for r in registros:
         r["status"] = _classificar(r)
