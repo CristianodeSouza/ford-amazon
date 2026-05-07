@@ -170,10 +170,11 @@ body {
 
 /* ── ABAS ─────────────────────────────────────────────── */
 .tabs-bar {
-  display: flex; gap: 4px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
   background: var(--surface); border-radius: var(--radius);
   box-shadow: var(--shadow); padding: 6px;
 }
+.tabs-group { display: flex; gap: 4px; flex-wrap: wrap; }
 .tab {
   display: flex; align-items: center; gap: 7px;
   padding: 8px 16px; border-radius: 7px; border: none;
@@ -193,6 +194,21 @@ body {
 }
 .tab-badge-green { background: var(--green-bg);   color: var(--green); }
 .tab-badge-red   { background: var(--red-bg);     color: var(--red); }
+
+.btn-export {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 8px; border: 1.5px solid var(--green-border);
+  background: var(--green-bg); color: var(--green);
+  font-size: .82rem; font-weight: 600; cursor: pointer;
+  white-space: nowrap; transition: all .18s; flex-shrink: 0;
+}
+.btn-export:hover:not(:disabled) {
+  background: var(--green); color: #fff; border-color: var(--green);
+  box-shadow: 0 2px 8px rgba(22,163,74,.25);
+}
+.btn-export:disabled { opacity: .4; cursor: not-allowed; }
+.btn-export svg { flex-shrink: 0; }
+.export-count { font-weight: 400; opacity: .75; font-size: .78rem; }
 
 /* ── TABELA ───────────────────────────────────────────── */
 .table-card {
@@ -661,7 +677,8 @@ body {
   .main { padding: 16px 16px 0; }
   .filters-fields { flex-direction: column; align-items: stretch; }
   .field-input, .field-input-lg { width: 100%; }
-  .tabs-bar { flex-direction: column; }
+  .tabs-bar { flex-direction: column; align-items: stretch; }
+  .btn-export { justify-content: center; }
   .header-title { font-size: .95rem; }
   .charts-grid { grid-template-columns: 1fr; }
   .resumo-grid { grid-template-columns: 1fr; }

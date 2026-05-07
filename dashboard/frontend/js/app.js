@@ -451,6 +451,74 @@ function dashboard() {
       return 'diff-alert';
     },
 
+    // ── Exportar planilha CSV ─────────────────────────────────────────────────
+    exportarPlanilha() {
+      if (!this.registros.length) return;
+
+      const BOM = '﻿';   // BOM para Excel abrir UTF-8 corretamente
+      const SEP = ';';
+      const rnd2 = v => v != null ? Number(v).toFixed(2).replace('.', ',') : '';
+      const esc  = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const hoje = new Date().toLocaleDateString('pt-BR');
+
+      const linhas = [];
+
+      // ── Cabeçalho ──
+      linhas.push([esc('CONCILIAÇÃO FORD AMAZON'), esc(hoje)].join(SEP));
+      if (this.labelPeriodo()) linhas.push([esc('Período'), esc(this.labelPeriodo())].join(SEP));
+      linhas.push([esc('Aba'), esc(this.abaLabel())].join(SEP));
+      linhas.push('');
+
+      // ── Resumo ──
+      linhas.push(esc('RESUMO DE CONCILIAÇÃO'));
+      linhas.push([esc('Total de Registros'),          esc(this.resumo.total)].join(SEP));
+      linhas.push([esc('Transações Normais'),           esc(this.resumo.total_normais)].join(SEP));
+      linhas.push([esc('Disputas / Chargebacks'),       esc(this.resumo.total_disputas)].join(SEP));
+      linhas.push([esc('Valor Faturado NF (R$)'),       esc(rnd2(this.resumo.nf_total))].join(SEP));
+      linhas.push([esc('Valor Recebido MP (R$)'),       esc(rnd2(this.resumo.pago_total))].join(SEP));
+      linhas.push([esc('Diferença Total (R$)'),         esc(rnd2(this.resumo.diff_total))].join(SEP));
+      linhas.push([esc('Taxa de Conciliação (%)'),      esc(this.ind.taxa_conciliacao)].join(SEP));
+      linhas.push([esc('Conciliadas OK'),               esc(this.ind.total_ok)].join(SEP));
+      linhas.push([esc('Divergentes'),                  esc(this.ind.total_divergente)].join(SEP));
+      linhas.push([esc('Disputas'),                     esc(this.ind.total_disputa)].join(SEP));
+      linhas.push([esc('Saldo Líquido Final (R$)'),     esc(rnd2(this.ind.saldo_liquido))].join(SEP));
+      linhas.push('');
+
+      // ── Detalhamento ──
+      linhas.push(esc('DETALHAMENTO DOS REGISTROS'));
+      const cols = [
+        'Nota Fiscal', 'Data Venda', 'Cliente',
+        'Valor NF (R$)', 'Valor Pago MP (R$)', 'Diferença (R$)',
+        'Status', 'Ação Recomendada', 'ID Operação',
+      ];
+      linhas.push(cols.map(esc).join(SEP));
+
+      for (const r of this.registros) {
+        linhas.push([
+          esc(r.nota_fiscal),
+          esc(r.data_venda),
+          esc(r.cliente),
+          esc(rnd2(r.valor_nf)),
+          esc(rnd2(r.valor_pago_mp)),
+          esc(rnd2(r.diferenca)),
+          esc(this.statusLabel(r)),
+          esc(this.acaoTag(r)),
+          esc(r.id_operacao),
+        ].join(SEP));
+      }
+
+      const csv  = BOM + linhas.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `Conciliacao_Ford_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
+
     abaLabel() {
       if (this.aba === 'normal')  return 'Transações Normais';
       if (this.aba === 'disputa') return 'Disputas / Chargebacks';

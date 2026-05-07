@@ -589,28 +589,43 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════
-         SEÇÃO 6 — Abas
+         SEÇÃO 6 — Abas + Exportar
     ═══════════════════════════════════════════════════════ -->
     <div class="tabs-bar">
-      <button class="tab" :class="aba==='todos' ? 'tab-active' : ''" @click="aba='todos'; carregar()">
-        Todos
-        <span class="tab-badge" x-text="resumo.total ?? 0"></span>
-      </button>
-      <button class="tab" :class="aba==='normal' ? 'tab-active tab-active-green' : ''" @click="aba='normal'; carregar()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-          <polyline points="20 6 9 17 4 12"/>
+      <div class="tabs-group">
+        <button class="tab" :class="aba==='todos' ? 'tab-active' : ''" @click="aba='todos'; carregar()">
+          Todos
+          <span class="tab-badge" x-text="resumo.total ?? 0"></span>
+        </button>
+        <button class="tab" :class="aba==='normal' ? 'tab-active tab-active-green' : ''" @click="aba='normal'; carregar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Transacoes Normais
+          <span class="tab-badge tab-badge-green" x-text="resumo.total_normais ?? 0"></span>
+        </button>
+        <button class="tab" :class="aba==='disputa' ? 'tab-active tab-active-red' : ''" @click="aba='disputa'; carregar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Disputas / Chargebacks
+          <span class="tab-badge tab-badge-red" x-text="resumo.total_disputas ?? 0"></span>
+        </button>
+      </div>
+
+      <button class="btn-export"
+        @click="exportarPlanilha()"
+        :disabled="loading || registros.length === 0"
+        title="Baixar planilha CSV com os dados visíveis">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
-        Transacoes Normais
-        <span class="tab-badge tab-badge-green" x-text="resumo.total_normais ?? 0"></span>
-      </button>
-      <button class="tab" :class="aba==='disputa' ? 'tab-active tab-active-red' : ''" @click="aba='disputa'; carregar()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        Disputas / Chargebacks
-        <span class="tab-badge tab-badge-red" x-text="resumo.total_disputas ?? 0"></span>
+        Baixar Planilha
+        <span class="export-count" x-show="registros.length > 0" x-text="`(${registros.length})`"></span>
       </button>
     </div>
 
