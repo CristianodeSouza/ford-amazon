@@ -17,7 +17,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Em produção (Render), busca em ../.., em dev usa ../frontend
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
+if not os.path.exists(FRONTEND_DIR):
+    FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "..")
+
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 app.mount("/css",    StaticFiles(directory=os.path.join(FRONTEND_DIR, "css")), name="css")
 app.mount("/js",     StaticFiles(directory=os.path.join(FRONTEND_DIR, "js")),  name="js")
