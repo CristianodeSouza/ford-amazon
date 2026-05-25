@@ -1,9 +1,16 @@
 import os
 import json
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
+from mercado_pago import (
+    buscar_pagamentos_90_dias,
+    buscar_pagamentos_por_nf,
+    refresh_access_token,
+    extrair_dados_pagamento
+)
 
 # Carregar variáveis de .env
 load_dotenv()
@@ -89,13 +96,53 @@ def fetch_from_sheets() -> list[dict]:
     return registros
 
 
+def enriquecer_com_mercado_pago(registros: list[dict]) -> list[dict]:
+    """Enriquece registros com dados do Mercado Pago se disponível."""
+    mp_refresh_token = os.environ.get("MP_REFRESH_TOKEN")
+    mp_client_secret = os.environ.get("MP_CLIENT_SECRET")
+    mp_access_token = os.environ.get("MP_ACCESS_TOKEN")
+
+    # Se não houver credenciais, retorna registros sem enriquecimento
+    if not mp_access_token and not (mp_refresh_token and mp_client_secret):
+        return registros
+
+    # Se houver refresh_token, obter novo access_token
+    if mp_refresh_token and mp_client_secret and not mp_access_token:
+        token = refresh_access_token(mp_refresh_token, mp_client_secret)
+        if token:
+            mp_access_token = token
+
+    # Se ainda não tiver token, retorna sem enriquecimento
+    if not mp_access_token:
+        return registros
+
+    # Enriquecer cada registro com dados do MP
+    for r in registros:
+        nf = r.get("nota_fiscal", "")
+        if nf:
+            pg = buscar_pagamentos_por_nf(mp_access_token, nf)
+            if pg:
+                r["id_operacao"] = pg.get("id_operacao")
+                r["valor_pago_mp"] = pg.get("valor_pago_mp")
+                r["data_aprovacao_mp"] = pg.get("data_aprovacao")
+                r["metodo_pagamento"] = pg.get("metodo_pagamento")
+                # Recalcular diferença
+                valor_nf = r.get("valor_nf")
+                if valor_nf and r.get("valor_pago_mp"):
+                    r["diferenca"] = round(valor_nf - r["valor_pago_mp"], 2)
+
+    return registros
+
+
 def fetch_conciliacao() -> list[dict]:
-    # Se há credenciais, busca direto do Google Sheets e atualiza cache
-    if os.path.exists(CREDENTIALS_FILE):
-        try:
-            return fetch_from_sheets()
-        except Exception:
-            pass  # Cai no cache se a autenticação falhar
+    # Tenta buscar direto do Google Sheets via Service Account
+    try:
+        registros = fetch_from_sheets()
+        # Tenta enriquecer com dados do MP se disponível
+        registros = enriquecer_com_mercado_pago(registros)
+        return registros
+    except Exception:
+        pass  # Cai no cache se a autenticação falhar
 
     # Sem credenciais ou em caso de erro: usa cache local
     if os.path.exists(CACHE_FILE):
@@ -104,5 +151,5 @@ def fetch_conciliacao() -> list[dict]:
 
     raise FileNotFoundError(
         "Sem credenciais Google e sem cache local. "
-        "Execute setup_google.py ou coloque o credentials.json em ford/"
+        "Configure GOOGLE_SERVICE_ACCOUNT_JSON no .env ou variáveis de ambiente do Render."
     )
