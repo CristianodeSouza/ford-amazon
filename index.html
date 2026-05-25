@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conciliação MP × ML — Ford Amazon</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+</head>
+<body x-data="dashboard()" x-init="init()">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2"/>
+          <path d="M8 21h8M12 17v4"/>
+          <path d="M6 8h4M6 11h6"/>
+        </svg>
+        <div>
+          <div class="header-title">Ford Amazon</div>
+          <div class="header-subtitle">Conciliação Mercado Pago × Mercado Livre</div>
+        </div>
+      </div>
+      <div class="header-right">
+        <span class="last-update" x-show="ultimaAtualizacao">
+          Atualizado às <strong x-text="ultimaAtualizacao"></strong>
+        </span>
+        <button class="btn-refresh" @click="atualizar()" :disabled="loading || loadingInd">
+          <svg x-show="!loading && !loadingInd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+            <path d="M1 4v6h6M23 20v-6h-6"/>
+            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/>
+          </svg>
+          <svg x-show="loading || loadingInd" class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+          </svg>
+          <span x-text="(loading || loadingInd) ? 'Carregando…' : 'Atualizar'"></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- Aviso -->
+    <div x-show="aviso" x-cloak class="alert" x-text="aviso"></div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         SEÇÃO 1 — KPIs Financeiros Principais
+    ═══════════════════════════════════════════════════════ -->
+    <div class="cards">
+
+      <div class="card">
+        <div class="card-icon card-icon-gray">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+        </div>
+        <div class="card-body">
+          <div class="card-label">Total Registros</div>
+          <div class="card-value" x-text="resumo.total ?? 0"></div>
+          <div class="card-sub">
+            <span class="pill pill-green" x-text="`${resumo.total_normais ?? 0} normais`"></span>
+            <span class="pill pill-red" x-text="`${resumo.total_disputas ?? 0} disputas`"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-blue">
+        <div class="card-icon card-icon-blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+            <line x1="12" y1="1" x2="12" y2="23"/>
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        </div>
+        <div class="card-body">
+          <div class="card-label">Total Faturado (NFs)</div>
+          <div class="card-value" x-text="fmt(ind.valor_faturado)"></div>
+          <div class="card-hint-neutral">Recebido líquido: <strong x-text="fmt(ind.valor_recebido)"></strong></div>
+        </div>
+      </div>
+
+      <div class="card card-orange">
+        <div class="card-icon card-icon-orange">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/>
+            <polyline points="16 7 22 7 22 13"/>
+          </svg>
+        </div>
+        <div class="card-body">
+          <div class="card-label">Taxas ML/MP</div>
+          <div class="card-value" x-text="fmt(ind.valor_taxas)"></div>
+          <div class="card-hint-neutral" x-show="ind.valor_faturado">
+            <span x-text="ind.pct_taxas + '%'"></span> do total faturado
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-red">
+        <div class="card-icon card-icon-red">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+        </div>
+        <div class="card-body">
+          <div class="card-label">Disputas / Chargebacks</div>
+          <div class="card-value card-value-red" x-text="resumo.total_disputas ?? 0"></div>
+          <div class="card-hint-red">Estorno: <strong x-text="fmt(ind.valor_disputas)"></strong></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         SEÇÃO 2 — Indicadores de Conciliação
+    ═══════════════════════════════════════════════════════ -->
+    <div class="section-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      Indicadores de Conciliação
+    </div>
+
+    <div class="cards cards-conc">
+
+      <!-- Taxa de Conciliação -->
+      <div class="card card-taxa">
+        <div class="taxa-wrap">
+          <div class="taxa-circle" :style="`--pct:${ind.taxa_conciliacao}`">
+            <div class="taxa-inner">
+              <span class="taxa-num" x-text="ind.taxa_conciliacao + '%'"></span>
+              <span class="taxa-label">conciliado</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="card-label">Taxa de Conciliação</div>
+          <div class="conc-progress">
+            <div class="conc-bar">
+              <div class="conc-fill" :style="`width:${ind.taxa_conciliacao}%`"></div>
+            </div>
+            <span class="conc-pct" x-text="ind.taxa_conciliacao + '%'"></span>
+          </div>
+          <div class="card-hint-neutral" x-text="`${ind.total_ok} de ${(ind.total_ok??0)+(ind.total_divergente??0)+(ind.total_sem_dados??0)} NFs conciliadas`"></div>
+        </div>
+      </div>
+
+      <!-- Conciliadas OK -->
+      <div class="card card-conc-ok">
+        <div class="card-icon card-icon-green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="20" height="20">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <div class="card-body">
+          <div class="card-label">Conciliadas OK</div>
+          <div class="card-value card-value-green" x-text="ind.total_ok ?? 0"></div>
+          <div class="card-hint-green">Valor bate com a NF</div>
+        </div>
+      </div>
+
+      <!-- Divergentes -->
+      <div class="card card-conc-div">
+        <div class="card-icon card-icon-orange">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+        <div class="card-body">
+          <div class="card-label">Com Divergência</div>
+          <div class="card-value card-value-orange" x-text="ind.total_divergente ?? 0"></div>
+          <div class="card-hint-orange">Requerem verificação</div>
+        </div>
+      </div>
+
+      <!-- Em Disputa -->
+      <div class="card card-conc-disp">
+        <div class="card-icon card-icon-red">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+        </div>
+        <div class="card-body">
+          <div class="card-label">Em Disputa</div>
+          <div class="card-value card-value-red" x-text="ind.total_disputa ?? 0"></div>
+          <div class="card-hint-red">Acao imediata necessária</div>
+        </div>
+      </div>
+
+      <!-- Saldo Líquido -->
+      <div class="card card-saldo">
+        <div class="card-icon card-icon-teal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+            <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+            <line x1="1" y1="10" x2="23" y2="10"/>
+          </svg>
+        </div>
+        <div class="card-body">
+          <div class="card-label">Saldo Líquido Final</div>
+          <div class="card-value card-value-teal" x-text="fmt(ind.saldo_liquido)"></div>
+          <div class="card-hint-neutral">Recebido menos estornos</div>
+        </div>
+      </div>
+
+    </div>
+
+
+    <!-- ═══════════════════════════════════════════════════════
+         SEÇÃO 4 — Resumo Conciliatório + Guia de Ações
+    ═══════════════════════════════════════════════════════ -->
+    <div class="section-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+      </svg>
+      Resumo Conciliatório
+    </div>
+
+    <div class="resumo-grid">
+
+      <!-- Painel Financeiro -->
+      <div class="resumo-card">
+        <div class="resumo-card-title">Demonstrativo Financeiro</div>
+        <div class="fin-table">
+
+          <div class="fin-row fin-row-primary">
+            <div class="fin-icon fin-icon-blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+                <path d="M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z"/>
+              </svg>
+            </div>
+            <div class="fin-desc">
+              <div class="fin-label">Valor Total Faturado (NFs emitidas)</div>
+              <div class="fin-sub">Soma de todas as notas fiscais normais</div>
+            </div>
+            <div class="fin-values">
+              <span class="fin-amount fin-amount-blue" x-text="fmt(ind.valor_faturado)"></span>
+              <span class="fin-pct fin-pct-neutral">100%</span>
+            </div>
+          </div>
+
+          <div class="fin-row fin-row-deduct">
+            <div class="fin-icon fin-icon-orange">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </div>
+            <div class="fin-desc">
+              <div class="fin-label">Taxas ML + MP</div>
+              <div class="fin-sub">Comissão do Mercado Livre e tarifas do Mercado Pago</div>
+            </div>
+            <div class="fin-values">
+              <span class="fin-amount fin-amount-orange" x-text="`− ${fmt(ind.valor_taxas)}`"></span>
+              <span class="fin-pct fin-pct-orange" x-text="`${ind.pct_taxas ?? 0}%`"></span>
+            </div>
+          </div>
+
+          <div class="fin-divider"></div>
+
+          <div class="fin-row fin-row-subtotal">
+            <div class="fin-icon fin-icon-green">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <rect x="1" y="4" width="22" height="16" rx="2"/>
+                <line x1="1" y1="10" x2="23" y2="10"/>
+              </svg>
+            </div>
+            <div class="fin-desc">
+              <div class="fin-label">Valor Líquido Recebido (MP)</div>
+              <div class="fin-sub">Creditado na conta Mercado Pago</div>
+            </div>
+            <div class="fin-values">
+              <span class="fin-amount fin-amount-green" x-text="fmt(ind.valor_recebido)"></span>
+              <span class="fin-pct fin-pct-green" x-text="`${ind.pct_recebido ?? 0}%`"></span>
+            </div>
+          </div>
+
+          <div class="fin-row fin-row-deduct">
+            <div class="fin-icon fin-icon-red">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+              </svg>
+            </div>
+            <div class="fin-desc">
+              <div class="fin-label">Estornos / Chargebacks</div>
+              <div class="fin-sub">Valores devolvidos em disputas</div>
+            </div>
+            <div class="fin-values">
+              <span class="fin-amount fin-amount-red" x-text="`− ${fmt(ind.valor_disputas)}`"></span>
+              <span class="fin-pct fin-pct-red" x-text="`${ind.pct_disputas ?? 0}%`"></span>
+            </div>
+          </div>
+
+          <div class="fin-divider fin-divider-thick"></div>
+
+          <div class="fin-row fin-row-total">
+            <div class="fin-icon fin-icon-teal">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </div>
+            <div class="fin-desc">
+              <div class="fin-label-bold">SALDO LÍQUIDO FINAL</div>
+              <div class="fin-sub">Recebido menos estornos — disponível para saque</div>
+            </div>
+            <div class="fin-values">
+              <span class="fin-amount fin-amount-teal fin-amount-big" x-text="fmt(ind.saldo_liquido)"></span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Guia de Ações -->
+      <div class="resumo-card">
+        <div class="resumo-card-title">Guia de Ações por Status</div>
+        <div class="acoes-list">
+
+          <div class="acao-item acao-ok">
+            <div class="acao-header">
+              <span class="acao-badge badge-ok">Conciliada</span>
+              <span class="acao-count" x-text="`${ind.total_ok ?? 0} NF(s)`"></span>
+            </div>
+            <div class="acao-desc">O valor pago no MP corresponde ao valor da Nota Fiscal.</div>
+            <div class="acao-instrucao">
+              <strong>Acao:</strong> Nenhuma. Arquivar e seguir.
+            </div>
+          </div>
+
+          <div class="acao-item acao-div">
+            <div class="acao-header">
+              <span class="acao-badge badge-div">Divergente</span>
+              <span class="acao-count" x-text="`${ind.total_divergente ?? 0} NF(s)`"></span>
+            </div>
+            <div class="acao-desc">
+              O valor da NF <strong>nao bate</strong> com o valor recebido no MP.
+              Pode ser positivo (NF &gt; MP) ou negativo (MP &gt; NF).
+            </div>
+            <div class="acao-instrucao">
+              <strong>NF &gt; MP:</strong> Verificar taxa extra, desconto nao registrado ou parcelamento com encargos.<br>
+              <strong>MP &gt; NF:</strong> Verificar se a NF foi emitida com valor incorreto ou se houve bonificacao.
+            </div>
+          </div>
+
+          <div class="acao-item acao-disp">
+            <div class="acao-header">
+              <span class="acao-badge badge-disp">Disputa / Chargeback</span>
+              <span class="acao-count" x-text="`${ind.total_disputa ?? 0} NF(s)`"></span>
+            </div>
+            <div class="acao-desc">
+              Estorno registrado no Mercado Pago. O comprador contestou o pagamento.
+            </div>
+            <div class="acao-instrucao">
+              <strong>Acao imediata:</strong> Acessar o painel do Mercado Livre &rarr; localizar o pedido &rarr; abrir contestacao.<br>
+              <strong>Prazo:</strong> Ate 10 dias uteis apos a notificacao. Reunir NF, comprovante de entrega e rastreamento.
+            </div>
+          </div>
+
+          <div class="acao-item acao-sem">
+            <div class="acao-header">
+              <span class="acao-badge badge-sem">Sem Dados MP</span>
+              <span class="acao-count" x-text="`${ind.total_sem_dados ?? 0} NF(s)`"></span>
+            </div>
+            <div class="acao-desc">
+              Pagamento nao localizado no Mercado Pago para esta NF.
+            </div>
+            <div class="acao-instrucao">
+              <strong>Acao:</strong> Verificar se o pagamento foi realizado por outro canal. Consultar suporte do MP com o ID da operacao.
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         SEÇÃO 5 — Filtros
+    ═══════════════════════════════════════════════════════ -->
+    <div class="filters-bar">
+
+      <div class="filters-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+        </svg>
+        Filtros
+        <span class="period-active-pill" x-show="(dataInicio || dataFim) && !buscaNF" x-cloak>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="11" height="11">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          Período ativo
+        </span>
+      </div>
+
+      <!-- Linha 1: Período + NF + Cliente -->
+      <div class="filters-fields filters-fields-v2">
+
+        <!-- BLOCO PERÍODO -->
+        <div class="period-block">
+          <div class="period-block-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+              <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            Período de conciliação
+          </div>
+          <div class="period-inputs">
+            <div class="field-group">
+              <label class="field-label">De</label>
+              <div class="field-wrap">
+                <input type="date" class="field-input field-date"
+                  x-model="dataInicio" @change="aplicarFiltros()" autocomplete="off">
+                <button class="field-clear" x-show="dataInicio" @click="dataInicio=''; aplicarFiltros()">✕</button>
+              </div>
+            </div>
+            <div class="period-dash">—</div>
+            <div class="field-group">
+              <label class="field-label">Até</label>
+              <div class="field-wrap">
+                <input type="date" class="field-input field-date"
+                  x-model="dataFim" @change="aplicarFiltros()" autocomplete="off">
+                <button class="field-clear" x-show="dataFim" @click="dataFim=''; aplicarFiltros()">✕</button>
+              </div>
+            </div>
+          </div>
+          <!-- Atalhos de período -->
+          <div class="period-presets">
+            <button class="preset-btn" @click="setPreset('hoje')">Hoje</button>
+            <button class="preset-btn" @click="setPreset('mes')">Este mês</button>
+            <button class="preset-btn" @click="setPreset('mes_ant')">Mês anterior</button>
+            <button class="preset-btn" @click="setPreset('ano')">Este ano</button>
+          </div>
+        </div>
+
+        <div class="filters-vsep"></div>
+
+        <!-- BLOCO BUSCA TEXTUAL -->
+        <div class="search-block">
+          <div class="field-group">
+            <label class="field-label">Nota Fiscal</label>
+            <div class="field-wrap">
+              <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input type="text" class="field-input field-input-lg"
+                placeholder="Ex: 81699 — busca em todas as datas"
+                x-model="buscaNF" @input.debounce.400ms="aplicarFiltros()" autocomplete="off">
+              <button class="field-clear" x-show="buscaNF" @click="buscaNF=''; aplicarFiltros()">✕</button>
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Cliente</label>
+            <div class="field-wrap">
+              <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
+              <input type="text" class="field-input"
+                placeholder="Nome do cliente…"
+                x-model="buscaCliente" @input.debounce.400ms="aplicarFiltros()" autocomplete="off">
+              <button class="field-clear" x-show="buscaCliente" @click="buscaCliente=''; aplicarFiltros()">✕</button>
+            </div>
+          </div>
+          <div class="field-group">
+            <label class="field-label">ID Operação / Source ID</label>
+            <div class="field-wrap">
+              <svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                <rect x="2" y="7" width="20" height="14" rx="2"/>
+                <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+              </svg>
+              <input type="text" class="field-input"
+                placeholder="Ex: 145930976362"
+                x-model="buscaId" @input.debounce.400ms="aplicarFiltros()" autocomplete="off">
+              <button class="field-clear" x-show="buscaId" @click="buscaId=''; aplicarFiltros()">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Limpar tudo -->
+        <button class="btn-limpar-tudo"
+          x-show="buscaNF || buscaCliente || buscaId || dataInicio || dataFim"
+          @click="limparFiltros()">
+          Limpar tudo
+        </button>
+
+      </div>
+
+      <!-- Linha 2: Badges de resultado e avisos -->
+      <div class="filter-notices" x-show="buscaNF || buscaCliente || buscaId || dataInicio || dataFim" x-cloak>
+
+        <!-- Período ativo -->
+        <span class="notice-badge notice-period" x-show="(dataInicio || dataFim) && !buscaNF" x-cloak>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+          <span x-text="labelPeriodo()"></span>
+        </span>
+
+        <!-- NF ignorando datas -->
+        <span class="notice-badge notice-nf-bypass" x-show="buscaNF && (dataInicio || dataFim)" x-cloak>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Buscando NF em todas as datas — filtro de período ignorado
+        </span>
+
+        <!-- Contagem de resultados -->
+        <span class="notice-badge notice-count">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <span x-text="`${total} registro(s) encontrado(s)`"></span>
+        </span>
+
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         SEÇÃO 6 — Abas + Exportar
+    ═══════════════════════════════════════════════════════ -->
+    <div class="tabs-bar">
+      <div class="tabs-group">
+        <button class="tab" :class="aba==='todos' ? 'tab-active' : ''" @click="aba='todos'; carregar()">
+          Todos
+          <span class="tab-badge" x-text="resumo.total ?? 0"></span>
+        </button>
+        <button class="tab" :class="aba==='normal' ? 'tab-active tab-active-green' : ''" @click="aba='normal'; carregar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Transacoes Normais
+          <span class="tab-badge tab-badge-green" x-text="resumo.total_normais ?? 0"></span>
+        </button>
+        <button class="tab" :class="aba==='disputa' ? 'tab-active tab-active-red' : ''" @click="aba='disputa'; carregar()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          Disputas / Chargebacks
+          <span class="tab-badge tab-badge-red" x-text="resumo.total_disputas ?? 0"></span>
+        </button>
+      </div>
+
+      <button class="btn-export"
+        @click="exportarPlanilha()"
+        :disabled="loading || registros.length === 0"
+        title="Baixar planilha CSV com os dados visíveis">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Baixar Planilha
+        <span class="export-count" x-show="registros.length > 0" x-text="`(${registros.length})`"></span>
+      </button>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         SEÇÃO 7 — Tabela de Registros
+    ═══════════════════════════════════════════════════════ -->
+    <div class="table-card" :class="aba === 'disputa' ? 'table-card-alert' : ''">
+
+      <div x-show="loading" x-cloak class="state-box">
+        <div class="loader"></div>
+        <p>Buscando dados na planilha…</p>
+      </div>
+
+      <div x-show="!loading && registros.length === 0" x-cloak class="state-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" width="48" height="48">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <p class="state-title">Nenhum registro encontrado</p>
+        <p class="state-sub" x-show="buscaNF || buscaCliente">Tente um número de NF diferente ou limpe o filtro.</p>
+        <p class="state-sub" x-show="!buscaNF && !buscaCliente">Nenhum dado nesta aba.</p>
+      </div>
+
+      <div x-show="!loading && registros.length > 0" class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Nota Fiscal</th>
+              <th>Data Venda</th>
+              <th>Cliente</th>
+              <th class="th-num">Valor NF</th>
+              <th class="th-num">Pago (MP)</th>
+              <th class="th-num">Diferenca</th>
+              <th class="th-num">Acao</th>
+              <th class="th-id">ID Operacao (MP)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(r, i) in registros" :key="i">
+              <tr :class="rowClass(r, i)">
+                <td>
+                  <span class="status-badge"
+                    :class="statusBadgeClass(r)"
+                    x-text="statusLabel(r)">
+                  </span>
+                </td>
+                <td>
+                  <span class="badge-nf" :class="r.tipo === 'disputa' ? 'badge-nf-red' : ''"
+                    x-text="r.nota_fiscal || '—'"></span>
+                </td>
+                <td x-text="r.data_venda || '—'"></td>
+                <td><div class="cliente-cell" x-text="r.cliente || '—'"></div></td>
+                <td class="td-num" x-text="fmt(r.valor_nf)"></td>
+                <td class="td-num" :class="r.tipo === 'disputa' ? 'td-red-bold' : ''"
+                  x-text="fmt(r.valor_pago_mp)"></td>
+                <td class="td-num" :class="diffClass(r)"
+                  x-text="r.diferenca != null ? fmt(r.diferenca) : '—'"></td>
+                <td class="td-acao">
+                  <span class="acao-tag" :class="acaoTagClass(r)" x-text="acaoTag(r)"></span>
+                </td>
+                <td class="td-id" x-text="r.id_operacao || '—'"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-footer" x-show="!loading && registros.length > 0">
+        <span x-text="`Exibindo ${total} registro(s)`"></span>
+        <span class="footer-sep">·</span>
+        <span x-text="abaLabel()"></span>
+        <span class="footer-sep">·</span>
+        <span>Planilha: Ford / Página2</span>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    Conciliação MP × ML — Ford Amazon &nbsp;|&nbsp; Dados via Google Sheets &nbsp;|&nbsp;
+    <a href="https://www.mercadopago.com.br/developers/pt/reference" target="_blank" rel="noopener">Docs MP</a> ·
+    <a href="https://developers.mercadolivre.com.br/pt_br/pedidos-e-opinioes" target="_blank" rel="noopener">Docs ML</a>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
