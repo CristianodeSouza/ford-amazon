@@ -1,5 +1,7 @@
 import os
 import json
+import base64
+import tempfile
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -13,6 +15,32 @@ FORD_ROOT        = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 CREDENTIALS_FILE = os.path.join(FORD_ROOT, "credentials.json")
 TOKEN_FILE       = os.path.join(FORD_ROOT, "token.json")
 CACHE_FILE       = os.path.join(FORD_ROOT, "data_cache.json")
+
+# Criar credenciais de arquivo ou variável de ambiente
+def _setup_credentials_from_env():
+    """Se houver GOOGLE_CREDENTIALS_B64 ou GOOGLE_CREDENTIALS_JSON, cria os arquivos temporários."""
+    creds_b64 = os.environ.get("GOOGLE_CREDENTIALS_B64")
+    creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+    token_b64 = os.environ.get("GOOGLE_TOKEN_B64")
+    token_json = os.environ.get("GOOGLE_TOKEN_JSON")
+
+    if creds_b64:
+        creds_content = base64.b64decode(creds_b64).decode("utf-8")
+        with open(CREDENTIALS_FILE, "w") as f:
+            f.write(creds_content)
+    elif creds_json:
+        with open(CREDENTIALS_FILE, "w") as f:
+            f.write(creds_json)
+
+    if token_b64:
+        token_content = base64.b64decode(token_b64).decode("utf-8")
+        with open(TOKEN_FILE, "w") as f:
+            f.write(token_content)
+    elif token_json:
+        with open(TOKEN_FILE, "w") as f:
+            f.write(token_json)
+
+_setup_credentials_from_env()
 
 
 def get_service():
