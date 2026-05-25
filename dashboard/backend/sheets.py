@@ -1,60 +1,34 @@
 import os
 import json
-import base64
-import tempfile
+from dotenv import load_dotenv
 from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
+from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
-from google_auth_oauthlib.flow import InstalledAppFlow
+
+# Carregar variáveis de .env
+load_dotenv()
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-SPREADSHEET_ID = "1gaZhv11XyIAPFi87GLPaVI-KKg8gb22N-XTNNxZ83cQ"
+SPREADSHEET_ID = os.environ.get("SHEETS_SPREADSHEET_ID", "1gaZhv11XyIAPFi87GLPaVI-KKg8gb22N-XTNNxZ83cQ")
 SHEET_RANGE = "Página2!A:J"
 
-FORD_ROOT        = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-CREDENTIALS_FILE = os.path.join(FORD_ROOT, "credentials.json")
-TOKEN_FILE       = os.path.join(FORD_ROOT, "token.json")
-CACHE_FILE       = os.path.join(FORD_ROOT, "data_cache.json")
-
-# Criar credenciais de arquivo ou variável de ambiente
-def _setup_credentials_from_env():
-    """Se houver GOOGLE_CREDENTIALS_B64 ou GOOGLE_CREDENTIALS_JSON, cria os arquivos temporários."""
-    creds_b64 = os.environ.get("GOOGLE_CREDENTIALS_B64")
-    creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
-    token_b64 = os.environ.get("GOOGLE_TOKEN_B64")
-    token_json = os.environ.get("GOOGLE_TOKEN_JSON")
-
-    if creds_b64:
-        creds_content = base64.b64decode(creds_b64).decode("utf-8")
-        with open(CREDENTIALS_FILE, "w") as f:
-            f.write(creds_content)
-    elif creds_json:
-        with open(CREDENTIALS_FILE, "w") as f:
-            f.write(creds_json)
-
-    if token_b64:
-        token_content = base64.b64decode(token_b64).decode("utf-8")
-        with open(TOKEN_FILE, "w") as f:
-            f.write(token_content)
-    elif token_json:
-        with open(TOKEN_FILE, "w") as f:
-            f.write(token_json)
-
-_setup_credentials_from_env()
+FORD_ROOT  = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CACHE_FILE = os.path.join(FORD_ROOT, "data_cache.json")
 
 
 def get_service():
-    creds = None
-    if os.path.exists(TOKEN_FILE):
-        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_FILE, SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open(TOKEN_FILE, "w") as f:
-            f.write(creds.to_json())
+    """Cria serviço Google Sheets usando Service Account (JSON da variável de ambiente)."""
+    service_account_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+
+    if not service_account_json:
+        raise ValueError(
+            "GOOGLE_SERVICE_ACCOUNT_JSON não está configurada. "
+            "Configure no .env ou nas variáveis de ambiente do Render."
+        )
+
+    service_account_info = json.loads(service_account_json)
+    creds = Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
+
     return build("sheets", "v4", credentials=creds)
 
 
