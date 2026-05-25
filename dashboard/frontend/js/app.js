@@ -11,10 +11,6 @@ let _rawAt       = null;
 let _pendingFetch = null;
 const CACHE_TTL  = 60_000;
 
-// ── Chart.js instances (fora do Alpine para evitar reatividade) ───────────────
-let _chartStatus = null;
-let _chartMensal = null;
-let _chartTopDiv = null;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Helpers de dados (modo Sheets)
@@ -344,8 +340,6 @@ function dashboard() {
           }
           Object.assign(this.ind, _calcInd(all));
         }
-        await this.$nextTick();
-        inicializarGraficos(this.ind);
       } catch (e) {
         console.warn('Indicadores:', e.message);
       } finally {
@@ -547,135 +541,3 @@ function dashboard() {
   };
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Chart.js — funções externas (sem reatividade Alpine)
-// ══════════════════════════════════════════════════════════════════════════════
-
-const CORES = {
-  ok: '#16a34a', div: '#d97706', disp: '#dc2626', sem: '#94a3b8',
-  ford: '#003087', fordMid: '#0050d0', green: '#16a34a',
-};
-const CHART_FONT  = { family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", size: 11 };
-const CHART_COLOR = '#64748b';
-
-function fmtBRL(v) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 }).format(v);
-}
-
-function inicializarGraficos(ind) {
-  buildChartStatus(ind);
-  buildChartMensal(ind);
-  buildChartTopDiv(ind);
-}
-
-function buildChartStatus(ind) {
-  const ctx = document.getElementById('chartStatus');
-  if (!ctx) return;
-  if (_chartStatus) { _chartStatus.destroy(); _chartStatus = null; }
-  const total = (ind.total_ok || 0) + (ind.total_divergente || 0) +
-                (ind.total_disputa || 0) + (ind.total_sem_dados || 0);
-  _chartStatus = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: ['Conciliadas', 'Divergentes', 'Disputas', 'Sem Dados'],
-      datasets: [{
-        data: [ind.total_ok || 0, ind.total_divergente || 0, ind.total_disputa || 0, ind.total_sem_dados || 0],
-        backgroundColor: [CORES.ok, CORES.div, CORES.disp, CORES.sem],
-        borderWidth: 3, borderColor: '#ffffff', hoverOffset: 6,
-      }],
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, cutout: '72%',
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label(ctx) {
-          const v = ctx.parsed;
-          const pct = total > 0 ? ((v / total) * 100).toFixed(1) : 0;
-          return ` ${v} NF(s) — ${pct}%`;
-        }}},
-      },
-    },
-  });
-}
-
-function buildChartMensal(ind) {
-  const ctx = document.getElementById('chartMensal');
-  if (!ctx) return;
-  if (_chartMensal) { _chartMensal.destroy(); _chartMensal = null; }
-  const dados = ind.evolucao_mensal || [];
-  if (dados.length === 0) return;
-  _chartMensal = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: dados.map(d => d.mes),
-      datasets: [
-        { label: 'Faturado (NF)', data: dados.map(d => d.faturado),
-          backgroundColor: 'rgba(0,48,135,0.80)', borderColor: CORES.ford, borderWidth: 1, borderRadius: 4 },
-        { label: 'Recebido (MP)', data: dados.map(d => d.recebido),
-          backgroundColor: 'rgba(22,163,74,0.75)', borderColor: CORES.green, borderWidth: 1, borderRadius: 4 },
-      ],
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label(ctx) { return ` ${ctx.dataset.label}: ${fmtBRL(ctx.parsed.y)}`; } } },
-      },
-      scales: {
-        x: { grid: { display: false }, ticks: { font: CHART_FONT, color: CHART_COLOR } },
-        y: { beginAtZero: true, grid: { color: '#f1f5f9' },
-          ticks: { font: CHART_FONT, color: CHART_COLOR,
-            callback(v) { return v >= 1000 ? 'R$' + (v / 1000).toFixed(0) + 'k' : 'R$' + v; } } },
-      },
-    },
-  });
-}
-
-function buildChartTopDiv(ind) {
-  const ctx = document.getElementById('chartTopDiv');
-  if (!ctx) return;
-  if (_chartTopDiv) { _chartTopDiv.destroy(); _chartTopDiv = null; }
-  const dados = (ind.top_divergencias || []).slice().reverse();
-  if (dados.length === 0) return;
-  const labels = dados.map(d => {
-    const nf = d.nota_fiscal || '—';
-    return nf.length > 10 ? nf.slice(0, 10) + '…' : nf;
-  });
-  _chartTopDiv = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        label: 'Diferença (R$)',
-        data: dados.map(d => Math.abs(d.diferenca || 0)),
-        backgroundColor: dados.map(d => (d.diferenca || 0) > 0 ? CORES.div : CORES.disp),
-        borderWidth: 0, borderRadius: 3,
-      }],
-    },
-    options: {
-      indexAxis: 'y',
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: {
-          title(items) { return `NF: ${dados[items[0].dataIndex].nota_fiscal}`; },
-          label(ctx) {
-            const d = dados[ctx.dataIndex];
-            return [
-              ` Diferença: ${fmtBRL(ctx.parsed.x)}`,
-              ` NF: ${fmtBRL(d.valor_nf)}`,
-              ` MP: ${fmtBRL(d.valor_pago_mp)}`,
-            ];
-          },
-        }},
-      },
-      scales: {
-        x: { beginAtZero: true, grid: { color: '#f1f5f9' },
-          ticks: { font: CHART_FONT, color: CHART_COLOR,
-            callback(v) { return v >= 1000 ? 'R$' + (v / 1000).toFixed(1) + 'k' : 'R$' + v; } } },
-        y: { grid: { display: false }, ticks: { font: CHART_FONT, color: CHART_COLOR } },
-      },
-    },
-  });
-}

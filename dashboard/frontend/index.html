@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Conciliação MP × ML — Ford Amazon</title>
   <link rel="stylesheet" href="css/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
 </head>
 <body x-data="dashboard()" x-init="init()">
@@ -212,80 +211,6 @@
 
     </div>
 
-    <!-- ═══════════════════════════════════════════════════════
-         SEÇÃO 3 — Gráficos
-    ═══════════════════════════════════════════════════════ -->
-    <div class="section-header">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-        <rect x="18" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/>
-        <rect x="2" y="13" width="4" height="8"/>
-      </svg>
-      Análise Gráfica
-    </div>
-
-    <div class="charts-grid">
-
-      <!-- Gráfico 1: Donut Status -->
-      <div class="chart-card">
-        <div class="chart-card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/>
-          </svg>
-          Status de Conciliação
-        </div>
-        <div class="chart-donut-wrap">
-          <canvas id="chartStatus"></canvas>
-          <div class="donut-center" x-show="!loadingInd">
-            <div class="donut-pct" x-text="ind.taxa_conciliacao + '%'"></div>
-            <div class="donut-sub">OK</div>
-          </div>
-        </div>
-        <div class="chart-legend">
-          <div class="legend-item"><span class="legend-dot dot-green"></span>Conciliadas (<span x-text="ind.total_ok ?? 0"></span>)</div>
-          <div class="legend-item"><span class="legend-dot dot-orange"></span>Divergentes (<span x-text="ind.total_divergente ?? 0"></span>)</div>
-          <div class="legend-item"><span class="legend-dot dot-red"></span>Disputas (<span x-text="ind.total_disputa ?? 0"></span>)</div>
-          <div class="legend-item"><span class="legend-dot dot-gray"></span>Sem Dados (<span x-text="ind.total_sem_dados ?? 0"></span>)</div>
-        </div>
-      </div>
-
-      <!-- Gráfico 2: Barras Mensais -->
-      <div class="chart-card chart-card-wide">
-        <div class="chart-card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <rect x="18" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/>
-            <rect x="2" y="13" width="4" height="8"/>
-          </svg>
-          Evolução Mensal — Faturado vs Recebido
-        </div>
-        <div class="chart-bar-wrap">
-          <canvas id="chartMensal"></canvas>
-        </div>
-        <div class="chart-legend chart-legend-row">
-          <div class="legend-item"><span class="legend-dot dot-ford"></span>Valor Faturado (NF)</div>
-          <div class="legend-item"><span class="legend-dot dot-green"></span>Valor Recebido (MP)</div>
-        </div>
-        <div x-show="!loadingInd && (ind.evolucao_mensal ?? []).length === 0" class="chart-empty">
-          Sem dados mensais suficientes para exibir o gráfico.
-        </div>
-      </div>
-
-      <!-- Gráfico 3: Top Divergências -->
-      <div class="chart-card">
-        <div class="chart-card-title">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-          </svg>
-          Top 10 Divergências
-        </div>
-        <div class="chart-hbar-wrap">
-          <canvas id="chartTopDiv"></canvas>
-        </div>
-        <div x-show="!loadingInd && (ind.top_divergencias ?? []).length === 0" class="chart-empty">
-          Nenhuma divergência encontrada.
-        </div>
-      </div>
-
-    </div>
 
     <!-- ═══════════════════════════════════════════════════════
          SEÇÃO 4 — Resumo Conciliatório + Guia de Ações
