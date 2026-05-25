@@ -8,7 +8,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
-from sheets import fetch_conciliacao
+from sheets import fetch_conciliacao, atualizar_planilha_com_mp
+from mercado_pago import refresh_access_token
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,6 +23,21 @@ def job_atualizar_dados():
     """Job que executa diariamente para atualizar dados da planilha."""
     try:
         logger.info(f"[{datetime.now()}] Iniciando atualização automática...")
+
+        # Tentar atualizar planilha com dados do MP
+        mp_refresh_token = os.environ.get("MP_REFRESH_TOKEN")
+        mp_client_secret = os.environ.get("MP_CLIENT_SECRET")
+
+        if mp_refresh_token and mp_client_secret:
+            try:
+                token = refresh_access_token(mp_refresh_token, mp_client_secret)
+                if token:
+                    linhas = atualizar_planilha_com_mp(token)
+                    logger.info(f"[{datetime.now()}] Planilha atualizada com {linhas} pagamentos do MP")
+            except Exception as e:
+                logger.warning(f"[{datetime.now()}] Erro ao atualizar com MP (continuando): {str(e)}")
+
+        # Sempre buscar dados (para cache)
         fetch_conciliacao()
         logger.info(f"[{datetime.now()}] Atualização automática concluída!")
     except Exception as e:
@@ -127,11 +143,29 @@ def refresh_dados():
     """Força atualização imediata dos dados da planilha."""
     try:
         logger.info(f"[{datetime.now()}] Refresh manual solicitado")
+
+        # Tentar atualizar planilha com dados do MP
+        mp_refresh_token = os.environ.get("MP_REFRESH_TOKEN")
+        mp_client_secret = os.environ.get("MP_CLIENT_SECRET")
+        linhas_mp = 0
+
+        if mp_refresh_token and mp_client_secret:
+            try:
+                token = refresh_access_token(mp_refresh_token, mp_client_secret)
+                if token:
+                    linhas_mp = atualizar_planilha_com_mp(token)
+                    logger.info(f"[{datetime.now()}] Planilha atualizada com {linhas_mp} pagamentos do MP")
+            except Exception as e:
+                logger.warning(f"[{datetime.now()}] Erro ao atualizar com MP (continuando): {str(e)}")
+
+        # Sempre buscar dados (para cache)
         registros = fetch_conciliacao()
         logger.info(f"[{datetime.now()}] Refresh manual concluído - {len(registros)} registros")
+
         return {
             "message": "Dados atualizados",
             "total": len(registros),
+            "linhas_atualizadas_mp": linhas_mp,
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:

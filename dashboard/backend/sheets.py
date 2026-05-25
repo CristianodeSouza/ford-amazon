@@ -9,7 +9,8 @@ from mercado_pago import (
     buscar_pagamentos_90_dias,
     buscar_pagamentos_por_nf,
     refresh_access_token,
-    extrair_dados_pagamento
+    extrair_dados_pagamento,
+    criar_mapa_pagamentos_por_nf
 )
 
 # Carregar variáveis de .env
@@ -94,6 +95,72 @@ def fetch_from_sheets() -> list[dict]:
         json.dump(registros, f, ensure_ascii=False)
 
     return registros
+
+
+def atualizar_planilha_com_mp(access_token: str) -> int:
+    """Atualiza a planilha Google com dados do Mercado Pago. Retorna quantas linhas foram atualizadas."""
+    try:
+        service = get_service()
+
+        # Buscar mapa de pagamentos do MP
+        mapa_pagamentos = criar_mapa_pagamentos_por_nf(access_token)
+        if not mapa_pagamentos:
+            print("Nenhum pagamento encontrado no MP")
+            return 0
+
+        # Buscar dados atuais da planilha
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range=SHEET_RANGE
+        ).execute()
+        rows = result.get("values", [])
+
+        if not rows:
+            return 0
+
+        # Preparar updates em batch
+        updates = []
+        linhas_atualizadas = 0
+
+        for idx, row in enumerate(rows[1:], start=2):  # Começa na linha 2 (após header)
+            if not row or not any(row):
+                continue
+
+            nf = row[0].strip() if len(row) > 0 else ""
+            if not nf:
+                continue
+
+            # Procurar pagamento correspondente
+            if nf in mapa_pagamentos:
+                pag = mapa_pagamentos[nf]
+                # Atualizar colunas E (valor_pago_mp) e J (id_operacao)
+                valor_pago = pag.get("valor_pago_mp")
+                id_op = pag.get("id_operacao", "")
+
+                # Preparar update
+                updates.append({
+                    "range": f"Página2!E{idx}",
+                    "values": [[valor_pago]]
+                })
+                updates.append({
+                    "range": f"Página2!J{idx}",
+                    "values": [[id_op]]
+                })
+                linhas_atualizadas += 1
+
+        # Executar updates em batch
+        if updates:
+            body = {"data": updates, "valueInputOption": "USER_ENTERED"}
+            service.spreadsheets().values().batchUpdate(
+                spreadsheetId=SPREADSHEET_ID,
+                body=body
+            ).execute()
+            print(f"Planilha atualizada: {linhas_atualizadas} linhas")
+
+        return linhas_atualizadas
+    except Exception as e:
+        print(f"Erro ao atualizar planilha com MP: {e}")
+        return 0
 
 
 def enriquecer_com_mercado_pago(registros: list[dict]) -> list[dict]:

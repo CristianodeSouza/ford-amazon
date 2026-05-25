@@ -112,3 +112,18 @@ def buscar_pagamentos_por_nf(access_token: str, nf: str) -> dict | None:
     except Exception as e:
         print(f"Erro ao buscar pagamento para NF {nf}: {e}")
         return None
+
+
+def criar_mapa_pagamentos_por_nf(access_token: str) -> dict:
+    """Cria um dicionário {external_reference: dados_pagamento} para todos os pagamentos."""
+    try:
+        pagamentos = buscar_pagamentos_90_dias(access_token)
+        mapa = {}
+        for pag in pagamentos:
+            external_ref = pag.get("external_reference")
+            if external_ref:
+                mapa[str(external_ref).strip()] = extrair_dados_pagamento(pag)
+        return mapa
+    except Exception as e:
+        print(f"Erro ao criar mapa de pagamentos: {e}")
+        return {}
