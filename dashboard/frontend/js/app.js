@@ -398,22 +398,22 @@ function dashboard() {
       this.loadingInd = true;
       this.aviso      = null;
       try {
-        if (IS_LOCAL) {
-          await fetch('/api/refresh', { method: 'POST' });
-        } else {
-          // Limpa cache para forçar re-leitura da planilha
-          _rawRows      = null;
-          _rawAt        = null;
-          _pendingFetch = null;
-          // Se webhook Make configurado, dispara o cenário para buscar dados frescos
-          if (MAKE_WEBHOOK) {
-            fetch(MAKE_WEBHOOK, { method: 'POST' }).catch(() => {});
-            await new Promise(r => setTimeout(r, 5000));
-          }
+        // Sempre chama o backend para refresh (local e produção)
+        await fetch('/api/refresh', { method: 'POST' });
+        // Limpa cache para forçar re-leitura imediata
+        _rawRows      = null;
+        _rawAt        = null;
+        _pendingFetch = null;
+        // Se webhook Make configurado, também dispara (para sincronizar dados das APIs)
+        if (MAKE_WEBHOOK) {
+          fetch(MAKE_WEBHOOK, { method: 'POST' }).catch(() => {});
+          await new Promise(r => setTimeout(r, 2000));
         }
         await this.aplicarFiltros();
+        this.aviso = 'Dados atualizados com sucesso!';
       } catch (e) {
         this.aviso      = 'Erro ao atualizar: ' + e.message;
+      } finally {
         this.loading    = false;
         this.loadingInd = false;
       }

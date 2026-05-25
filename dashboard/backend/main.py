@@ -1,14 +1,36 @@
 import os
 import re
+import logging
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.background import BackgroundScheduler
 from sheets import fetch_conciliacao
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="Ford Amazon — Conciliação Dashboard")
+
+# Scheduler para atualização automática diária
+scheduler = BackgroundScheduler()
+
+def job_atualizar_dados():
+    """Job que executa diariamente para atualizar dados da planilha."""
+    try:
+        logger.info(f"[{datetime.now()}] Iniciando atualização automática...")
+        fetch_conciliacao()
+        logger.info(f"[{datetime.now()}] Atualização automática concluída!")
+    except Exception as e:
+        logger.error(f"[{datetime.now()}] Erro na atualização automática: {str(e)}")
+
+# Agendar job para rodar todo dia às 09:00 (horário do servidor)
+scheduler.add_job(job_atualizar_dados, 'cron', hour=9, minute=0, id='atualizar_dados_diario')
+scheduler.start()
+logger.info("Scheduler iniciado - atualização automática às 09:00 UTC")
 
 app.add_middleware(
     CORSMiddleware,
@@ -102,11 +124,31 @@ def listar_conciliacao(
 
 @app.post("/api/refresh")
 def refresh_dados():
+    """Força atualização imediata dos dados da planilha."""
     try:
+        logger.info(f"[{datetime.now()}] Refresh manual solicitado")
         registros = fetch_conciliacao()
-        return {"message": "Dados atualizados", "total": len(registros)}
+        logger.info(f"[{datetime.now()}] Refresh manual concluído - {len(registros)} registros")
+        return {
+            "message": "Dados atualizados",
+            "total": len(registros),
+            "timestamp": datetime.now().isoformat()
+        }
     except Exception as e:
+        logger.error(f"Erro no refresh: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/status")
+def status():
+    """Status da aplicação e próxima atualização agendada."""
+    next_run = scheduler.get_job('atualizar_dados_diario')
+    return {
+        "status": "online",
+        "timestamp": datetime.now().isoformat(),
+        "next_scheduled_update": next_run.next_run_time.isoformat() if next_run else None,
+        "scheduler_running": scheduler.running
+    }
 
 
 # ── HELPERS CONCILIAÇÃO ────────────────────────────────────────────────────────
