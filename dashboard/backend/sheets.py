@@ -19,7 +19,7 @@ from mercado_pago import (
 # Carregar variáveis de .env
 load_dotenv()
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 SPREADSHEET_ID = os.environ.get("SHEETS_SPREADSHEET_ID", "1gaZhv11XyIAPFi87GLPaVI-KKg8gb22N-XTNNxZ83cQ")
 SHEET_RANGE = "Página2!A:J"
 
@@ -108,18 +108,6 @@ def atualizar_planilha_com_mp(access_token_mp: str) -> int:
 
         service = get_service()
 
-        # Obter token do ML
-        ml_refresh_token = os.environ.get("ML_REFRESH_TOKEN")
-        ml_client_secret = os.environ.get("ML_CLIENT_SECRET")
-
-        token_ml = None
-        if ml_refresh_token and ml_client_secret:
-            token_ml = refresh_ml_access_token(ml_refresh_token, ml_client_secret)
-            if token_ml:
-                print("Token ML obtido com sucesso")
-            else:
-                print("Falha ao obter token ML - continuando sem NFs")
-
         # Baixar CSV de liquidação do MP
         print("Baixando CSV de liquidação do MP...")
         csv_content = baixar_csv_liquidacao_mp(access_token_mp)
@@ -127,21 +115,18 @@ def atualizar_planilha_com_mp(access_token_mp: str) -> int:
             print("Não foi possível baixar o CSV de liquidação")
             return 0
 
-        # Parse do CSV
-        csv_lines = csv_content.strip().split('\n')
+        # Parse do CSV: criar mapa {SOURCE_ID: REAL_AMOUNT}
         csv_reader = csv.DictReader(io.StringIO(csv_content), delimiter=';')
-
-        # Criar mapa {order_id: dados_csv}
         mapa_csv = {}
         for row in csv_reader:
-            external_ref = row.get('external_reference', '').strip()
-            if external_ref and external_ref.startswith('200001'):
-                mapa_csv[external_ref] = {
-                    'source_id': row.get('source_id', ''),
-                    'real_amount': row.get('real_amount', ''),
-                }
+            source_id = row.get('SOURCE_ID', '').strip()
+            real_amount = row.get('REAL_AMOUNT', '').strip()
+            if source_id:
+                # Armazenar apenas o primeiro valor encontrado para cada SOURCE_ID
+                if source_id not in mapa_csv:
+                    mapa_csv[source_id] = real_amount
 
-        print(f"CSV carregado: {len(mapa_csv)} registros válidos")
+        print(f"CSV carregado: {len(mapa_csv)} registros únicos")
 
         # Buscar dados atuais da planilha
         result = service.spreadsheets().values().get(
@@ -164,35 +149,16 @@ def atualizar_planilha_com_mp(access_token_mp: str) -> int:
             nf = row[0].strip() if len(row) > 0 else ""
             id_operacao = row[9].strip() if len(row) > 9 and row[9] else ""
 
-            if not nf:
+            if not nf or not id_operacao:
                 continue
 
-            # Tentar encontrar o order_id do ML
-            order_id = None
-
-            # Se o id_operacao já contém um order_id do ML (formato 2000016XXXXX), usar ele
-            if id_operacao and str(id_operacao).startswith("200001"):
-                order_id = id_operacao
-            # Senão, buscar a NF no ML para pegar o order_id
-            elif token_ml:
-                # Não temos como buscar a NF do ML sem conhecer o order_id... skipar
-                continue
-
-            if not order_id:
-                continue
-
-            # Buscar dados no CSV do MP
-            if str(order_id) in mapa_csv:
-                csv_data = mapa_csv[str(order_id)]
-                valor_pago = csv_data.get('real_amount', '')
-                source_id = csv_data.get('source_id', '')
-
-                # Atualizar coluna E (valor_pago)
+            # Buscar SOURCE_ID na coluna J (id_operacao) no mapa do CSV
+            if id_operacao in mapa_csv:
+                valor_pago = mapa_csv[id_operacao]
                 updates.append({
                     "range": f"Página2!E{idx}",
                     "values": [[valor_pago]]
                 })
-
                 linhas_atualizadas += 1
 
         # Executar updates em batch

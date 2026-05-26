@@ -214,7 +214,7 @@ def baixar_csv_liquidacao_mp(access_token: str) -> str | None:
     """Baixa o CSV de liquidação mais recente do MP."""
     try:
         # Primeiro, listar os relatórios de liquidação disponíveis
-        url = "https://api.mercadopago.com/v1/account/settlement-report/list"
+        url = "https://api.mercadopago.com/v1/account/settlement_report/list"
         headers = {"Authorization": f"Bearer {access_token}"}
 
         resp = requests.get(url, headers=headers, timeout=10)
@@ -224,20 +224,20 @@ def baixar_csv_liquidacao_mp(access_token: str) -> str | None:
         if not isinstance(data, list):
             data = [data]
 
-        if not data:
+        if len(data) < 2:
             print("Nenhum relatório de liquidação disponível")
             return None
 
-        # Pegar o mais recente
-        mais_recente = data[-1]
-        filename = mais_recente.get("file_name")
+        # Pegar o segundo elemento (índice 1) conforme Make cenário
+        mais_recente = data[1]
+        file_name = mais_recente.get("file_name")
 
-        if not filename:
+        if not file_name:
             print("Nenhum arquivo encontrado no relatório")
             return None
 
         # Baixar o arquivo CSV
-        url_csv = f"https://api.mercadopago.com/v1/account/settlement-report/{filename}"
+        url_csv = f"https://api.mercadopago.com/v1/account/settlement_report/{file_name}"
         resp = requests.get(url_csv, headers=headers, timeout=30)
         resp.raise_for_status()
 
