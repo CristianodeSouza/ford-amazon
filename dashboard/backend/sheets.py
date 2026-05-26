@@ -78,7 +78,19 @@ def fetch_from_sheets() -> list[dict]:
         valor_nf   = parse_currency(col(row, 3))
         valor_pago = parse_currency(col(row, 4))
         diferenca  = round(valor_nf - valor_pago, 2) if valor_nf is not None and valor_pago is not None else None
-        tipo = "disputa" if (valor_pago is not None and valor_pago < 0) else "normal"
+
+        # Classificação de status (match com dashboard)
+        if valor_pago is None:
+            status = "sem_dados"
+        elif valor_pago < 0:
+            status = "disputa"
+        elif diferenca is not None and abs(diferenca) <= 0.01:
+            status = "ok"
+        elif diferenca is not None:
+            status = "divergente"
+        else:
+            status = "sem_dados"
+
         registros.append({
             "nota_fiscal":   nf,
             "data_venda":    col(row, 1),
@@ -90,7 +102,7 @@ def fetch_from_sheets() -> list[dict]:
             "percentual":    col(row, 7),
             "id_operacao":   col(row, 9),
             "diferenca":     diferenca,
-            "tipo":          tipo,
+            "status":        status,
         })
 
     # Atualiza o cache local sempre que buscar do Google
