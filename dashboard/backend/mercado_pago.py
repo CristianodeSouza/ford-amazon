@@ -8,6 +8,8 @@ load_dotenv()
 
 MP_CLIENT_ID = "3857722102307647"
 MP_USER_ID = 1576552143
+ML_CLIENT_ID = "3857722102307647"
+ML_USER_ID = 1576552143
 
 def refresh_access_token(refresh_token: str, client_secret: str) -> str | None:
     """Obtém novo access_token usando refresh_token."""
@@ -127,3 +129,119 @@ def criar_mapa_pagamentos_por_nf(access_token: str) -> dict:
     except Exception as e:
         print(f"Erro ao criar mapa de pagamentos: {e}")
         return {}
+
+
+def refresh_ml_access_token(refresh_token: str, client_secret: str) -> str | None:
+    """Obtém novo access_token para Mercado Livre usando refresh_token."""
+    try:
+        url = "https://api.mercadolibre.com/oauth/token"
+        data = {
+            "grant_type": "refresh_token",
+            "client_id": ML_CLIENT_ID,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token
+        }
+        resp = requests.post(url, data=data, timeout=10)
+        resp.raise_for_status()
+        return resp.json().get("access_token")
+    except Exception as e:
+        print(f"Erro ao refresh ML token: {e}")
+        return None
+
+
+def buscar_pedidos_ml(access_token: str) -> list[dict]:
+    """Busca pedidos do usuário no Mercado Livre."""
+    try:
+        url = f"https://api.mercadolibre.com/orders/search/seller/{ML_USER_ID}"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        params = {
+            "sort": "date_created",
+            "order": "desc",
+            "limit": 100
+        }
+
+        all_orders = []
+        offset = 0
+
+        while True:
+            params["offset"] = offset
+            resp = requests.get(url, headers=headers, params=params, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+
+            orders = data.get("orders", [])
+            if not orders:
+                break
+
+            all_orders.extend(orders)
+
+            paging = data.get("paging", {})
+            if len(all_orders) >= paging.get("total", 0):
+                break
+
+            offset += 100
+
+        return all_orders
+    except Exception as e:
+        print(f"Erro ao buscar pedidos ML: {e}")
+        return []
+
+
+def buscar_nf_por_order_id(access_token_ml: str, order_id: str) -> dict | None:
+    """Busca a NF de um pedido no ML usando o order_id."""
+    try:
+        url = f"https://api.mercadolibre.com/users/{ML_USER_ID}/invoices/orders/{order_id}"
+        headers = {"Authorization": f"Bearer {access_token_ml}"}
+
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+
+        data = resp.json()
+        return {
+            "invoice_number": data.get("invoice_number"),
+            "issued_date": data.get("issued_date"),
+            "recipient_name": data.get("recipient", {}).get("name", ""),
+            "amount": data.get("amount"),
+        }
+    except Exception as e:
+        print(f"Erro ao buscar NF para order_id {order_id}: {e}")
+        return None
+
+
+def baixar_csv_liquidacao_mp(access_token: str) -> str | None:
+    """Baixa o CSV de liquidação mais recente do MP."""
+    try:
+        # Primeiro, listar os relatórios de liquidação disponíveis
+        url = "https://api.mercadopago.com/v1/account/settlement-report/list"
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+
+        data = resp.json()
+        if not isinstance(data, list):
+            data = [data]
+
+        if not data:
+            print("Nenhum relatório de liquidação disponível")
+            return None
+
+        # Pegar o mais recente
+        mais_recente = data[-1]
+        filename = mais_recente.get("file_name")
+
+        if not filename:
+            print("Nenhum arquivo encontrado no relatório")
+            return None
+
+        # Baixar o arquivo CSV
+        url_csv = f"https://api.mercadopago.com/v1/account/settlement-report/{filename}"
+        resp = requests.get(url_csv, headers=headers, timeout=30)
+        resp.raise_for_status()
+
+        return resp.text
+    except Exception as e:
+        print(f"Erro ao baixar CSV de liquidação: {e}")
+        return None
