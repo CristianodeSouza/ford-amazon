@@ -190,6 +190,153 @@ def atualizar_planilha_com_mp(access_token_mp: str) -> int:
         return 0
 
 
+def verificar_periodo_carregado(date_from: datetime, date_to: datetime) -> bool:
+    """Verifica se um período já foi carregado na Página1."""
+    try:
+        service = get_service()
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range="Página1!A:A"
+        ).execute()
+        rows = result.get("values", [])
+
+        if len(rows) <= 1:  # Apenas cabeçalho
+            return False
+
+        # Procurar por datas neste período nas linhas existentes
+        for row in rows[1:]:
+            if not row:
+                continue
+            try:
+                # Coluna A pode ter datas em formato DD/MM/YYYY ou YYYY-MM-DD
+                data_str = row[0].strip() if row else ""
+                if '/' in data_str:
+                    data = datetime.strptime(data_str, "%d/%m/%Y")
+                elif '-' in data_str:
+                    data = datetime.strptime(data_str, "%Y-%m-%d")
+                else:
+                    continue
+
+                if date_from <= data <= date_to:
+                    return True  # Período já foi carregado
+            except:
+                continue
+
+        return False
+    except Exception as e:
+        print(f"[AVISO] Erro ao verificar período: {e}")
+        return False
+
+
+def append_page1_raw_data(csv_content: str) -> int:
+    """Adiciona linhas brutas do CSV ao final da Página1. Retorna quantas linhas foram adicionadas."""
+    try:
+        import csv
+        import io
+
+        service = get_service()
+
+        # Parse CSV
+        csv_reader = csv.DictReader(io.StringIO(csv_content), delimiter=';')
+        linhas_para_adicionar = []
+
+        for row in csv_reader:
+            # Adicionar todas as colunas do CSV (conforme Página1 schema)
+            linhas_para_adicionar.append([
+                row.get('SETTLEMENT_DATE', ''),
+                row.get('SOURCE_ID', ''),
+                row.get('REAL_AMOUNT', ''),
+                row.get('SETTLEMENT_STATUS', ''),
+                # ... adicionar outras colunas conforme necessário
+            ])
+
+        if not linhas_para_adicionar:
+            return 0
+
+        # Encontrar última linha vazia
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range="Página1!A:A"
+        ).execute()
+        last_row = len(result.get("values", [])) + 1
+
+        # Fazer append
+        body = {
+            "values": linhas_para_adicionar
+        }
+
+        result = service.spreadsheets().values().append(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"Página1!A{last_row}",
+            valueInputOption="USER_ENTERED",
+            body=body
+        ).execute()
+
+        adicionadas = result.get("updates", {}).get("updatedRows", 0)
+        print(f"Página1: {adicionadas} linhas adicionadas")
+        return adicionadas
+
+    except Exception as e:
+        print(f"Erro ao fazer append em Página1: {e}")
+        import traceback
+        traceback.print_exc()
+        return 0
+
+
+def append_page2_reconciliacao(registros: list[dict]) -> int:
+    """Adiciona linhas de reconciliação ao final da Página2. Retorna quantas linhas foram adicionadas."""
+    try:
+        service = get_service()
+
+        # Converter registros para formato de linha
+        linhas_para_adicionar = []
+        for reg in registros:
+            linhas_para_adicionar.append([
+                reg.get("nota_fiscal", ""),
+                reg.get("data_venda", ""),
+                reg.get("cliente", ""),
+                str(reg.get("valor_nf", "")),
+                str(reg.get("valor_pago_mp", "")),
+                str(reg.get("custo_medio", "")),
+                str(reg.get("desconto", "")),
+                str(reg.get("percentual", "")),
+                str(reg.get("valor_pago", "")),
+                reg.get("id_operacao", ""),
+            ])
+
+        if not linhas_para_adicionar:
+            return 0
+
+        # Encontrar última linha
+        result = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID,
+            range="Página2!A:A"
+        ).execute()
+        last_row = len(result.get("values", [])) + 1
+
+        # Fazer append
+        body = {
+            "values": linhas_para_adicionar
+        }
+
+        result = service.spreadsheets().values().append(
+            spreadsheetId=SPREADSHEET_ID,
+            range=f"Página2!A{last_row}",
+            valueInputOption="USER_ENTERED",
+            body=body
+        ).execute()
+
+        adicionadas = result.get("updates", {}).get("updatedRows", 0)
+        print(f"Página2: {adicionadas} linhas adicionadas")
+        return adicionadas
+
+    except Exception as e:
+        print(f"Erro ao fazer append em Página2: {e}")
+        import traceback
+        traceback.print_exc()
+        return 0
+
+
 def enriquecer_com_mercado_pago(registros: list[dict]) -> list[dict]:
     """Enriquece registros com dados do Mercado Pago se disponível."""
     mp_refresh_token = os.environ.get("MP_REFRESH_TOKEN")
